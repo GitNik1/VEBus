@@ -30,7 +30,6 @@ struct InfoType
 };
 
 std::vector<InfoType> _SentInfoReads(32);
-std::vector<uint8_t> _SentInfoRead(32);
 
 void destuffingFAtoFF(std::vector<uint8_t>& buffer)
 {
@@ -42,11 +41,6 @@ void destuffingFAtoFF(std::vector<uint8_t>& buffer)
             buffer.erase(buffer.begin() + i + 1);
         }
     }
-}
-
-void Response(VEBus::ResponseData& data)
-{
-    Serial.printf("Res: id %d, value: %0.2f\n",data.id, data.value);
 }
 
 void Receive(std::vector<uint8_t>& buffer)
@@ -124,7 +118,6 @@ void setup()
 
     Serial.begin(256000);
 
-    _vEBus.SetResponseCallback(Response);
     _vEBus.SetReceiveCallback(Receive, _blacklist, sizeofarray(_blacklist));
     _vEBus.SetLogLevel(VEBus::LogLevel::None);
     _vEBus.Setup();

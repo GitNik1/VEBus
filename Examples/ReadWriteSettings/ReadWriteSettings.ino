@@ -14,7 +14,7 @@ VEBus::Blacklist _blacklist[] = { {.value = 0xE4, .at = 4}, {.value = 0x55, .at 
 
 void Response(VEBus::ResponseData& data)
 {
-    Serial.printf("Res: id %d, value: %0.2f\n",data.id, data.value);
+    Serial.printf("Res: id %d, value: %0.2f\n",data.id, data.valueFloat);
 }
 
 void Receive(std::vector<uint8_t>& buffer)

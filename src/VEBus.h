@@ -36,7 +36,8 @@ public:
     struct ResponseData
     {
         uint8_t id;
-        float value;
+        float valueFloat;
+        uint32_t valueUint32;
     };
 
     struct Blacklist
@@ -114,6 +115,11 @@ public:
     bool NewMultiPlusStatusAvailable();
     MultiPlusStatus GetMultiPlusStatus();
 
+    //Get VE.BUS Version
+    uint8_t ReadSoftwareVersion();
+
+    void DestuffingFAtoFF(std::vector<uint8_t>& buffer);
+
 private:
     struct Data
     {
@@ -173,11 +179,11 @@ private:
     void prepareCommandWriteAddress(std::vector<uint8_t>& buffer, uint8_t id, uint8_t winmonCommand, uint16_t address);
     void prepareCommandWriteData(std::vector<uint8_t>& buffer, uint8_t id, uint16_t value);
     void prepareCommandReadInfo(std::vector<uint8_t>& buffer, uint8_t id, uint8_t winmonCommand, uint16_t setting);
+    void prepareCommandReadSoftwareVersion(std::vector<uint8_t>& buffer, uint8_t id, uint8_t winmonCommand);
 
     void prepareCommandSetSwitchState(std::vector<uint8_t>& buffer, SwitchState switchState);
 
     void stuffingFAtoFF(std::vector<uint8_t>& buffer);
-    void destuffingFAtoFF(std::vector<uint8_t>& buffer);
     void appendChecksum(std::vector<uint8_t>& buffer);
 
     uint16_t convertRamVarToRawValue(RamVariables variable, float value);

@@ -377,6 +377,18 @@ MultiPlusStatus VEBus::GetMultiPlusStatus()
 	return _multiPlusStatus;
 }
 
+uint8_t VEBus::ReadSoftwareVersion()
+{
+	Data data;
+	if (!getNextFreeId_1(data.id)) return 0;
+	data.responseExpected = true;
+	data.command = WinmonCommand::SendSoftwareVersionPart0;
+	data.expectedResponseCode = 0x82;
+	prepareCommandReadSoftwareVersion(data.requestData, data.id, data.command);
+	addOrUpdateFifo(data);
+	return data.id;
+}
+
 void VEBus::addOrUpdateFifo(Data data, bool updateIfExist)
 {
 	data.responseData.clear();
@@ -525,6 +537,15 @@ void VEBus::prepareCommandReadInfo(std::vector<uint8_t>& buffer, uint8_t id, uin
 	buffer.push_back(setting >> 8);
 }
 
+//long Winmon frames
+void VEBus::prepareCommandReadSoftwareVersion(std::vector<uint8_t>& buffer, uint8_t id, uint8_t winmonCommand)
+{
+	buffer.clear();
+	buffer.push_back(0x00);
+	buffer.push_back(id);
+	buffer.push_back(winmonCommand);
+}
+
 //prepareCommand without ID
 void VEBus::prepareCommandSetSwitchState(std::vector<uint8_t>& buffer, SwitchState switchState)
 {
@@ -548,7 +569,7 @@ void VEBus::stuffingFAtoFF(std::vector<uint8_t>& buffer)
 	}
 }
 
-void VEBus::destuffingFAtoFF(std::vector<uint8_t>& buffer)
+void VEBus::DestuffingFAtoFF(std::vector<uint8_t>& buffer)
 {
 	for (uint8_t i = 4; i < buffer.size(); i++)
 	{
@@ -858,7 +879,7 @@ void VEBus::commandHandling()
 		}
 		xSemaphoreGive(_semaphoreReceiveData);
 
-		destuffingFAtoFF(_receiveBuffer);
+		DestuffingFAtoFF(_receiveBuffer);
 		auto messageType = decodeVEbusFrame(_receiveBuffer);
 		_receiveBuffer.clear();
 
@@ -971,12 +992,23 @@ void VEBus::checkResponseMessage()
 void VEBus::saveResponseData(Data data)
 {
 	bool callResponseCb = false;
-	float value = 0.0f;
+	ResponseData responseData;
+	responseData.id = data.id;
 
 	switch (data.command)
 	{
 	case VEBusDefinition::SendSoftwareVersionPart0:
+	{
+		if (data.responseData.size() != 19) {
+			if (_logLevel >= LogLevel::Warning) Serial.printf("SendSoftwareVersionPart0 wrong size %d\n", data.responseData.size());
+			break;
+		}
+		callResponseCb = true;
+		responseData.valueUint32 = (data.responseData[7]) | (data.responseData[8] << 8) | (data.responseData[9] << 16) | (data.responseData[10] << 24);
+		//[11] [12] [13] [14] [15] [16] still unknown
+		// 08   1D 	 00   00   39   10
 		break;
+	}
 	case VEBusDefinition::SendSoftwareVersionPart1:
 		break;
 	case VEBusDefinition::GetSetDeviceState:
@@ -992,10 +1024,10 @@ void VEBus::saveResponseData(Data data)
 		int16_t signedRawValueint = ((int16_t)data.responseData[8] << 8) | data.responseData[7];
 		if (!_ramVarInfoList[data.address].available) break;
 
-		if (_ramVarInfoList[data.address].Scale < 0) value = convertRamVarToValueSigned((RamVariables)data.address, signedRawValueint);
-		else value = convertRamVarToValue((RamVariables)data.address, UnsignedRawValue);
+		if (_ramVarInfoList[data.address].Scale < 0) responseData.valueFloat = convertRamVarToValueSigned((RamVariables)data.address, signedRawValueint);
+		else responseData.valueFloat = convertRamVarToValue((RamVariables)data.address, UnsignedRawValue);
 
-		value += _ramVarInfoList[data.address].Offset;
+		responseData.valueFloat += _ramVarInfoList[data.address].Offset;
 		break;
 	}
 	case VEBusDefinition::ReadSetting:
@@ -1009,7 +1041,7 @@ void VEBus::saveResponseData(Data data)
 		rawValue = ((uint16_t)data.responseData[8] << 8) | data.responseData[7];
 		if (!_settingInfoList[data.address].available) break;
 
-		value = convertSettingToValue((Settings)data.address, rawValue);
+		responseData.valueFloat = convertSettingToValue((Settings)data.address, rawValue);
 		break;
 	}
 	case VEBusDefinition::WriteRAMVar:
@@ -1042,7 +1074,6 @@ void VEBus::saveResponseData(Data data)
 
 	if (callResponseCb)
 	{
-		ResponseData responseData = { .id = data.id, .value = value };
 		_onResponseCb(responseData);
 	}
 
