@@ -625,12 +625,6 @@ float VEBus::convertRamVarToValueSigned(RamVariables variable, int16_t rawValue)
 	return value;
 }
 
-
-
-
-
-
-
 uint16_t VEBus::convertSettingToRawValue(Settings setting, float value)
 {
 	uint16_t rawValue;
@@ -913,16 +907,17 @@ void VEBus::commandHandling()
 
 void VEBus::sendData(VEBus::Data& data, uint8_t& frameNr)
 {
-	prepareCommand(data.requestData, frameNr);
-	stuffingFAtoFF(data.requestData);
-	appendChecksum(data.requestData);
+	Data sendData = data;
+	prepareCommand(sendData.requestData, frameNr);
+	stuffingFAtoFF(sendData.requestData);
+	appendChecksum(sendData.requestData);
 
-	uint8_t* buffer = &data.requestData[0];
+	uint8_t* buffer = &sendData.requestData[0];
 
 #ifndef UART_MODE_RS485
 	digitalWrite(_rePin, HIGH);
 #endif
-	_serial.write(buffer, data.requestData.size());
+	_serial.write(buffer, sendData.requestData.size());
 #ifndef UART_MODE_RS485
 	_serial.flush();
 	digitalWrite(_rePin, LOW);
@@ -1126,6 +1121,7 @@ void VEBus::garbageCollector()
 			if (_logLevel >= LogLevel::Warning) Serial.printf("Timeout id: %d command %d resend count: %d\n", it->id, it->command, it->resendCount);
 			if (it->resendCount >= MAX_RESEND) {
 				it = _dataFifo.erase(it);
+				if (_logLevel >= LogLevel::Warning) Serial.println("The message is deleted.");
 				continue;
 			}
 			else {
