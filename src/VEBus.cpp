@@ -44,6 +44,8 @@ VEBus::VEBus(HardwareSerial& serial, int8_t rxPin, int8_t txPin, int8_t rePin) :
 	_semaphoreDataFifo = xSemaphoreCreateMutex();
 	_semaphoreStatus = xSemaphoreCreateMutex();
 	_semaphoreReceiveData = xSemaphoreCreateMutex();
+	SetReceiveCallback([this](std::vector<uint8_t>&) {});
+	SetResponseCallback([this](ResponseData&) {});
 	_dataFifo.reserve(10);
 	_receiveBufferList.reserve(10);
 }
@@ -994,6 +996,8 @@ void VEBus::saveResponseData(Data data)
 	bool callResponseCb = false;
 	ResponseData responseData;
 	responseData.id = data.id;
+	responseData.command = data.command;
+	responseData.address = data.address;
 
 	switch (data.command)
 	{
@@ -1005,6 +1009,7 @@ void VEBus::saveResponseData(Data data)
 		}
 		callResponseCb = true;
 		responseData.valueUint32 = (data.responseData[7]) | (data.responseData[8] << 8) | (data.responseData[9] << 16) | (data.responseData[10] << 24);
+		responseData.dataType = ResponseDataType::unsignedInteger;
 		//[11] [12] [13] [14] [15] [16] still unknown
 		// 08   1D 	 00   00   39   10
 		break;
@@ -1020,14 +1025,30 @@ void VEBus::saveResponseData(Data data)
 			break;
 		}
 		callResponseCb = true;
+		responseData.dataType = _ramVarInfoList[data.address].dataType;
 		uint16_t UnsignedRawValue = (((uint16_t)data.responseData[8] << 8) | data.responseData[7]);
 		int16_t signedRawValueint = ((int16_t)data.responseData[8] << 8) | data.responseData[7];
 		if (!_ramVarInfoList[data.address].available) break;
+		switch (_ramVarInfoList[data.address].dataType)
+		{
+		case VEBusDefinition::none:
+			break;
+		case VEBusDefinition::floatingPoint:
+			if (_ramVarInfoList[data.address].Scale < 0) responseData.valueFloat = convertRamVarToValueSigned((RamVariables)data.address, signedRawValueint);
+			else responseData.valueFloat = convertRamVarToValue((RamVariables)data.address, UnsignedRawValue);
 
-		if (_ramVarInfoList[data.address].Scale < 0) responseData.valueFloat = convertRamVarToValueSigned((RamVariables)data.address, signedRawValueint);
-		else responseData.valueFloat = convertRamVarToValue((RamVariables)data.address, UnsignedRawValue);
-
-		responseData.valueFloat += _ramVarInfoList[data.address].Offset;
+			responseData.valueFloat += _ramVarInfoList[data.address].Offset;
+			break;
+		case VEBusDefinition::unsignedInteger:
+			responseData.valueUint32 = UnsignedRawValue;
+			break;
+		case VEBusDefinition::signedInteger:
+			responseData.valueUint32 = signedRawValueint;
+			break;
+		default:
+			break;
+		}
+		
 		break;
 	}
 	case VEBusDefinition::ReadSetting:
@@ -1037,11 +1058,24 @@ void VEBus::saveResponseData(Data data)
 			break;
 		}
 		callResponseCb = true;
+		responseData.dataType = _settingInfoList[data.address].dataType;
 		uint16_t rawValue;
 		rawValue = ((uint16_t)data.responseData[8] << 8) | data.responseData[7];
 		if (!_settingInfoList[data.address].available) break;
-
-		responseData.valueFloat = convertSettingToValue((Settings)data.address, rawValue);
+		switch (_settingInfoList[data.address].dataType)
+		{
+		case VEBusDefinition::none:
+			break;
+		case VEBusDefinition::floatingPoint:
+			responseData.valueFloat = convertSettingToValue((Settings)data.address, rawValue);
+			break;
+		case VEBusDefinition::unsignedInteger:
+			responseData.valueUint32 = rawValue;
+			break;
+		default:
+			break;
+		}
+		
 		break;
 	}
 	case VEBusDefinition::WriteRAMVar:

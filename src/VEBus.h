@@ -36,8 +36,12 @@ public:
     struct ResponseData
     {
         uint8_t id;
+        uint8_t command;
+        uint8_t address;
         float valueFloat;
         uint32_t valueUint32;
+        int32_t valueint32;
+        ResponseDataType dataType;
     };
 
     struct Blacklist

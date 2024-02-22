@@ -122,6 +122,14 @@ namespace VEBusDefinition
         sync
     };
 
+    enum ResponseDataType
+    {
+        none = 0,
+        floatingPoint,
+        unsignedInteger,
+        signedInteger
+    };
+
     enum StorageType
     {
         Eeprom = 0x00,
@@ -137,6 +145,7 @@ namespace VEBusDefinition
         uint16_t Maximum;
         uint8_t AccessLevel;
         bool available;
+        ResponseDataType dataType;
     };
 
     struct RAMVarInfo
@@ -144,6 +153,7 @@ namespace VEBusDefinition
         int16_t Scale;
         int16_t Offset;
         bool available;
+        ResponseDataType dataType;
     };
 
     union LEDData
@@ -189,41 +199,41 @@ namespace VEBusDefinition
 //GetSettingInfo 13 wrong size 9 [83 83 FE 32 00 8D 89 BB FF]
 //GetSettingInfo 14 wrong size 9 [83 83 FE 09 00 8E 89 E3 FF]
 //                                    sc, offset,default,    min,    max, access,
-#define DefaultSettingInfoList  {      1,      0,  35248,      0,  28668,      0,  true}, \
-                                {      2,      0,  19966,      0,  65535,      0,  true}, \
-                                {   -100,      0,   1440,   1200,   1600,      0,  true}, \
-                                {   -100,      0,   1380,   1200,   1600,      0,  true}, \
-                                {      1,      0,    120,      0,    120,      0,  true}, \
-                                {      1,      0,    230,    210,    245,      0,  true}, \
-                                {    -10,      0,    320,     10,    500,      0,  true}, \
-                                {     15,      0,      4,      1,     96,      0,  true}, \
-                                {    360,      0,     28,      1,    180,      0,  true}, \
-                                {     60,      0,      8,      1,     24,      0,  true}, \
-                                {      1,      0,      3,      1,      3,      0,  true}, \
-                                {   -100,      0,    930,    930,   1300,    128,  true}, \
-                                {   -100,      0,    160,     25,    600,      0,  true}, \
-                                {      0,      0,      0,      0,      0,      0, false}, \
-                                {      0,      0,      0,      0,      0,      0, false} \
+#define DefaultSettingInfoList  {      1,      0,  35248,      0,  28668,      0,  true, ResponseDataType::unsignedInteger}, \
+                                {      2,      0,  19966,      0,  65535,      0,  true, ResponseDataType::unsignedInteger}, \
+                                {   -100,      0,   1440,   1200,   1600,      0,  true, ResponseDataType::floatingPoint}, \
+                                {   -100,      0,   1380,   1200,   1600,      0,  true, ResponseDataType::floatingPoint}, \
+                                {      1,      0,    120,      0,    120,      0,  true, ResponseDataType::floatingPoint}, \
+                                {      1,      0,    230,    210,    245,      0,  true, ResponseDataType::floatingPoint}, \
+                                {    -10,      0,    320,     10,    500,      0,  true, ResponseDataType::floatingPoint}, \
+                                {     15,      0,      4,      1,     96,      0,  true, ResponseDataType::floatingPoint}, \
+                                {    360,      0,     28,      1,    180,      0,  true, ResponseDataType::floatingPoint}, \
+                                {     60,      0,      8,      1,     24,      0,  true, ResponseDataType::floatingPoint}, \
+                                {      1,      0,      3,      1,      3,      0,  true, ResponseDataType::floatingPoint}, \
+                                {   -100,      0,    930,    930,   1300,    128,  true, ResponseDataType::floatingPoint}, \
+                                {   -100,      0,    160,     25,    600,      0,  true, ResponseDataType::floatingPoint}, \
+                                {      0,      0,      0,      0,      0,      0, false, ResponseDataType::none}, \
+                                {      0,      0,      0,      0,      0,      0, false, ResponseDataType::none}
 
 
 //Default for Multiplus-II 12/3000
 //GetRAMVarInfo 10 wrong size 9 [83 83 FE 5C 00 8A 8E 8F FF]
 //                                    sc, offset,
-#define DefaultRamVarInfoList   {  32668,      0,  true}, \
-                                { -32668,      0,  true}, \
-                                {  32668,      0,  true}, \
-                                {  32668,      0,  true}, \
-                                {  32668,      0,  true}, \
-                                { -32758,      0,  true}, \
-                                {  32668,      0,  true}, \
-                                {  30815,    256,  true}, \
-                                {  31791,      0,  true}, \
-                                { -32668,      0,  true}, \
-                                {      0,      0, false}, \
-                                {      5, -32768,  true}, \
-                                {      6, -32768,  true}, \
-                                {  32568,      0,  true}, \
-                                {     -1,      0,  true}
+#define DefaultRamVarInfoList   {  32668,      0,  true, ResponseDataType::floatingPoint}, \
+                                { -32668,      0,  true, ResponseDataType::floatingPoint}, \
+                                {  32668,      0,  true, ResponseDataType::floatingPoint}, \
+                                {  32668,      0,  true, ResponseDataType::floatingPoint}, \
+                                {  32668,      0,  true, ResponseDataType::floatingPoint}, \
+                                { -32758,      0,  true, ResponseDataType::floatingPoint}, \
+                                {  32668,      0,  true, ResponseDataType::floatingPoint}, \
+                                {  30815,    256,  true, ResponseDataType::floatingPoint}, \
+                                {  31791,      0,  true, ResponseDataType::floatingPoint}, \
+                                { -32668,      0,  true, ResponseDataType::floatingPoint}, \
+                                {      0,      0, false, ResponseDataType::none}, \
+                                {      5, -32768,  true, ResponseDataType::floatingPoint}, \
+                                {      6, -32768,  true, ResponseDataType::floatingPoint}, \
+                                {  32568,      0,  true, ResponseDataType::floatingPoint}, \
+                                {     -1,      0,  true, ResponseDataType::floatingPoint}
 #endif // MULTIPLUS_II_12_3000
 }
 
