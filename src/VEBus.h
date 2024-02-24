@@ -9,15 +9,12 @@
 
 #include "arduino.h"
 
-
 #define UART_MODE_RS485
 #ifdef UART_MODE_RS485
 #include "hal/uart_types.h"
-#include <vector>
 #endif
 
-
-//#include <stdint.h>
+#include <vector>
 #include "VEBusDefinition.h"
 
 using namespace VEBusDefinition;
