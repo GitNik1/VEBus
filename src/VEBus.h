@@ -47,6 +47,12 @@ public:
         uint8_t at;
     };
 
+    struct Whitelist
+    {
+        uint8_t value;
+        uint8_t at;
+    };
+
     enum RequestError
     {
         Success,
@@ -76,6 +82,7 @@ public:
     void SetResponseCallback(std::function<void(ResponseData&)> cb);
     void SetReceiveCallback(std::function<void(std::vector<uint8_t>& buffer)> cb);
     void SetReceiveCallback(std::function<void(std::vector<uint8_t>& buffer)> cb, Blacklist* blacklist, size_t size);
+    void SetReceiveCallback(std::function<void(std::vector<uint8_t>& buffer)> cb, Whitelist* whitelist, size_t size);
 
     void StartCommunication();
     void StopCommunication();
@@ -116,6 +123,12 @@ public:
     bool NewMultiPlusStatusAvailable();
     MultiPlusStatus GetMultiPlusStatus();
 
+    bool NewDcInfoAvailable();
+    DcInfo GetDcInfo();
+
+    uint8_t NewAcInfoAvailable();
+    AcInfo GetAcInfo(uint8_t type);
+
     //Get VE.BUS Version
     uint8_t ReadSoftwareVersion();
 
@@ -152,14 +165,18 @@ private:
     RAMVarInfo _ramVarInfoList[RamVariables::SizeOfRamVarStruct] = { DefaultRamVarInfoList };
     Blacklist _blacklist[20];
     size_t _blacklistSize = 0;
+    Whitelist _whitelist[20];
+    size_t _whitelistSize = 0;
+    std::vector<AcInfo> _acInfo;
+    DcInfo _dcInfo;
 
-    MasterMultiLed _masterMultiLedCore0;
     MasterMultiLed _masterMultiLed;
-    bool _masterMultiLedLogged = false;
+    volatile bool _masterMultiLedNewData = false;
+    volatile bool _masterMultiLedLogged = false;
 
-    MultiPlusStatus _multiPlusStatusCore0;
     MultiPlusStatus _multiPlusStatus;
-    bool _multiPlusStatusLogged = false;
+    volatile bool _multiPlusStatusNewData = false;
+    volatile bool _multiPlusStatusLogged = false;
 
     LogLevel _logLevel = LogLevel::None;
 
@@ -168,6 +185,7 @@ private:
 
     bool _communitationIsRunning = false;
     volatile bool _communitationIsResumed = false;
+
 
     void addOrUpdateFifo(Data data, bool updateIfExist = true);
     bool getNextFreeId_1(uint8_t& id);
@@ -200,6 +218,8 @@ private:
     void decodeChargerInverterCondition(std::vector<uint8_t>& buffer); //0x80
     void decodeBatteryCondition(std::vector<uint8_t>& buffer); //0x70
     void decodeMasterMultiLed(std::vector<uint8_t>& buffer); //0x41
+    void decodeInfoFrame(std::vector<uint8_t>& buffer); // 0x20
+
     void saveSettingInfoData(Data& data);
     void saveRamVarInfoData(Data& data);
     void commandHandling();
@@ -207,7 +227,6 @@ private:
     void sendData(VEBus::Data& data, uint8_t& frameNr);
     void checkResponseMessage();
     void saveResponseData(Data data);
-    void saveStatusFromCore0();
     void garbageCollector();
     void logging();
 };

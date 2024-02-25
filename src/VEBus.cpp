@@ -76,7 +76,6 @@ void VEBus::Maintain()
 	logging();
 	garbageCollector();
 	checkResponseMessage();
-	saveStatusFromCore0();
 
 	xSemaphoreTake(_semaphoreReceiveData, portMAX_DELAY);
 	while (!_receiveBufferList.empty())
@@ -109,8 +108,17 @@ void VEBus::SetReceiveCallback(std::function<void(std::vector<uint8_t>&)> cb)
 
 void VEBus::SetReceiveCallback(std::function<void(std::vector<uint8_t>&)> cb, Blacklist* blacklist, size_t size)
 {
+	if (size > 20) size = 20;
 	for (size_t i = 0; i < size; i++) _blacklist[i] = blacklist[i];
 	_blacklistSize = size;
+	_onReceiveCb = cb;
+}
+
+void VEBus::SetReceiveCallback(std::function<void(std::vector<uint8_t>&)> cb, Whitelist* whitelist, size_t size)
+{
+	if (size > 20) size = 20;
+	for (size_t i = 0; i < size; i++) _whitelist[i] = whitelist[i];
+	_whitelistSize = size;
 	_onReceiveCb = cb;
 }
 
@@ -360,23 +368,75 @@ SettingInfo VEBus::GetSettingInfo(Settings setting)
 
 bool VEBus::NewMasterMultiLedAvailable()
 {
-	return false;
+	return _masterMultiLedNewData;
 }
 
 MasterMultiLed VEBus::GetMasterMultiLed()
 {
-	return _masterMultiLed;
+	MasterMultiLed multiLed;
+	xSemaphoreTake(_semaphoreStatus, portMAX_DELAY);
+	_masterMultiLedNewData = false;
+	multiLed = _masterMultiLed;
+	xSemaphoreGive(_semaphoreStatus);
+
+	return multiLed;
 }
 
 bool VEBus::NewMultiPlusStatusAvailable()
 {
-	return false;
+	return _multiPlusStatusNewData;
 }
 
 MultiPlusStatus VEBus::GetMultiPlusStatus()
 {
-	_multiPlusStatus.newData = false;
-	return _multiPlusStatus;
+	MultiPlusStatus multiStatus;
+	xSemaphoreTake(_semaphoreStatus, portMAX_DELAY);
+	_multiPlusStatusNewData = false;
+	multiStatus = _multiPlusStatus;
+	xSemaphoreGive(_semaphoreStatus);
+
+	return multiStatus;
+}
+
+bool VEBus::NewDcInfoAvailable()
+{
+	return _dcInfo.newInfo;
+}
+
+DcInfo VEBus::GetDcInfo()
+{
+	DcInfo info;
+	xSemaphoreTake(_semaphoreStatus, portMAX_DELAY);
+	_dcInfo.newInfo = false;
+	info = _dcInfo;
+	xSemaphoreGive(_semaphoreStatus);
+	return info;
+}
+
+AcInfo VEBus::GetAcInfo(uint8_t type)
+{
+	AcInfo info;
+	xSemaphoreTake(_semaphoreStatus, portMAX_DELAY);
+	for (auto& element : _acInfo) {
+		if (element.Phase != type) continue;
+		element.newInfo = false;
+		info = element;
+		break;
+	}
+	xSemaphoreGive(_semaphoreStatus);
+	return info;
+}
+
+uint8_t VEBus::NewAcInfoAvailable()
+{
+	uint8_t phaseId = 0;
+	for (auto& element : _acInfo) {
+		if (element.newInfo == false) continue;
+		phaseId = element.Phase;
+		break;
+	}
+
+	return phaseId;
 }
 
 uint8_t VEBus::ReadSoftwareVersion()
@@ -689,30 +749,20 @@ ReceivedMessageType VEBus::decodeVEbusFrame(std::vector<uint8_t>& buffer)
 	case 0x00:
 	{
 		if (buffer.size() < 6) return ReceivedMessageType::Unknown;
-		xSemaphoreTake(_semaphoreStatus, portMAX_DELAY);
+		xSemaphoreTake(_semaphoreDataFifo, portMAX_DELAY);
 		for (uint8_t i = 0; i < _dataFifo.size(); i++)
 		{
 			if (_dataFifo[i].id != buffer[5]) continue;
 			_dataFifo[i].responseData = buffer;
 			break;
 		}
-		xSemaphoreGive(_semaphoreStatus);
+		xSemaphoreGive(_semaphoreDataFifo);
 		break;
 	}
-	case 0x20:
+	case 0x20: //Info Frame
 	{
-		if (buffer.size() < 6) return ReceivedMessageType::Unknown;
-		xSemaphoreTake(_semaphoreStatus, portMAX_DELAY);
-		for (uint8_t i = 0; i < _dataFifo.size(); i++)
-		{
-			if (_dataFifo[i].id != buffer[5]) continue;
-			if (_logLevel < LogLevel::Information) continue;
-			Serial.print("Info frame: ");
-			for (size_t i = 0; i < buffer.size(); i++) Serial.printf("%02X ", buffer[i]);
-			Serial.println();
-			break;
-		}
-		xSemaphoreGive(_semaphoreStatus);
+		if (buffer.size() < 20) return ReceivedMessageType::Unknown;
+		decodeInfoFrame(buffer);
 		break;
 	}
 	case 0x41:
@@ -753,11 +803,11 @@ void VEBus::decodeChargerInverterCondition(std::vector<uint8_t>& buffer)
 {
 	if ((buffer.size() == 19) && (buffer[5] == 0x80) && ((buffer[6] & 0xFE) == 0x12) && (buffer[8] == 0x80) && ((buffer[11] & 0x10) == 0x10) && (buffer[12] == 0x00))
 	{
-		if (_masterMultiLedCore0.LowBattery != (buffer[7] == LOW_BATTERY))
+		if (_masterMultiLed.LowBattery != (buffer[7] == LOW_BATTERY))
 		{
 			xSemaphoreTake(_semaphoreStatus, portMAX_DELAY);
-			_masterMultiLedCore0.LowBattery = (buffer[7] == LOW_BATTERY);
-			_masterMultiLedCore0.newData = true;
+			_masterMultiLed.LowBattery = (buffer[7] == LOW_BATTERY);
+			_masterMultiLedNewData = true;
 			_masterMultiLedLogged = false;
 			xSemaphoreGive(_semaphoreStatus);
 
@@ -769,18 +819,18 @@ void VEBus::decodeChargerInverterCondition(std::vector<uint8_t>& buffer)
 		if ((buffer[11] & 0xF0) == 0x30) temp = buffer[15] / 10.0f;
 
 		bool newValue = false;
-		newValue |= _multiPlusStatusCore0.DcLevelAllowsInverting != dcLevelAllowsInverting;
-		newValue |= _multiPlusStatusCore0.DcCurrentA != dcCurrentA;
-		if ((buffer[11] & 0xF0) == 0x30) newValue |= _multiPlusStatusCore0.Temp != temp;
+		newValue |= _multiPlusStatus.DcLevelAllowsInverting != dcLevelAllowsInverting;
+		newValue |= _multiPlusStatus.DcCurrentA != dcCurrentA;
+		if ((buffer[11] & 0xF0) == 0x30) newValue |= _multiPlusStatus.Temp != temp;
 
 		if (newValue)
 		{
 			xSemaphoreTake(_semaphoreStatus, portMAX_DELAY);
-			_multiPlusStatusCore0.DcLevelAllowsInverting = dcLevelAllowsInverting;
-			_multiPlusStatusCore0.DcCurrentA = dcCurrentA;
-			_multiPlusStatusCore0.newData = true;
+			_multiPlusStatus.DcLevelAllowsInverting = dcLevelAllowsInverting;
+			_multiPlusStatus.DcCurrentA = dcCurrentA;
+			_multiPlusStatusNewData = true;
 			_multiPlusStatusLogged = false;
-			if ((buffer[11] & 0xF0) == 0x30) _multiPlusStatusCore0.Temp = temp;
+			if ((buffer[11] & 0xF0) == 0x30) _multiPlusStatus.Temp = temp;
 			xSemaphoreGive(_semaphoreStatus);
 		}
 	}
@@ -791,11 +841,11 @@ void VEBus::decodeBatteryCondition(std::vector<uint8_t>& buffer)
 	if ((buffer.size() == 15) && (buffer[5] == 0x81) && (buffer[6] == 0x64) && (buffer[7] == 0x14) && (buffer[8] == 0xBC) && (buffer[9] == 0x02) && (buffer[12] == 0x00))
 	{
 		float multiplusAh = (((uint16_t)buffer[11] << 8) | buffer[10]);
-		if (multiplusAh != _multiPlusStatusCore0.BatterieAh)
+		if (multiplusAh != _multiPlusStatus.BatterieAh)
 		{
 			xSemaphoreTake(_semaphoreStatus, portMAX_DELAY);
-			_multiPlusStatusCore0.BatterieAh = multiplusAh;
-			_multiPlusStatusCore0.newData = true;
+			_multiPlusStatus.BatterieAh = multiplusAh;
+			_multiPlusStatusNewData = true;
 			_multiPlusStatusLogged = false;
 			xSemaphoreGive(_semaphoreStatus);
 		}
@@ -817,32 +867,98 @@ void VEBus::decodeMasterMultiLed(std::vector<uint8_t>& buffer)
 
 	bool newValue = false;
 
-	newValue |= _masterMultiLedCore0.LEDon.value != lEDon.value;
-	newValue |= _masterMultiLedCore0.LEDblink.value != lEDblink.value;
-	newValue |= _masterMultiLedCore0.LowBattery != lowBattery;
-	newValue |= _masterMultiLedCore0.AcInputConfiguration != lED_AcInputConfiguration;
-	newValue |= _masterMultiLedCore0.MinimumInputCurrentLimitA != minimumInputCurrentLimit;
-	newValue |= _masterMultiLedCore0.MaximumInputCurrentLimitA != maximumInputCurrentLimit;
-	newValue |= _masterMultiLedCore0.ActualInputCurrentLimitA != actualInputCurrentLimit;
-	newValue |= _masterMultiLedCore0.SwitchRegister != switchRegister;
+	newValue |= _masterMultiLed.LEDon.value != lEDon.value;
+	newValue |= _masterMultiLed.LEDblink.value != lEDblink.value;
+	newValue |= _masterMultiLed.LowBattery != lowBattery;
+	newValue |= _masterMultiLed.AcInputConfiguration != lED_AcInputConfiguration;
+	newValue |= _masterMultiLed.MinimumInputCurrentLimitA != minimumInputCurrentLimit;
+	newValue |= _masterMultiLed.MaximumInputCurrentLimitA != maximumInputCurrentLimit;
+	newValue |= _masterMultiLed.ActualInputCurrentLimitA != actualInputCurrentLimit;
+	newValue |= _masterMultiLed.SwitchRegister != switchRegister;
 
 	if (newValue)
 	{
 		xSemaphoreTake(_semaphoreStatus, portMAX_DELAY);
-		_masterMultiLedCore0.LEDon.value = lEDon.value;
-		_masterMultiLedCore0.LEDblink.value = lEDblink.value;
-		_masterMultiLedCore0.LowBattery = lowBattery;
-		_masterMultiLedCore0.AcInputConfiguration = lED_AcInputConfiguration;
-		_masterMultiLedCore0.MinimumInputCurrentLimitA = minimumInputCurrentLimit;
-		_masterMultiLedCore0.MaximumInputCurrentLimitA = maximumInputCurrentLimit;
-		_masterMultiLedCore0.ActualInputCurrentLimitA = actualInputCurrentLimit;
-		_masterMultiLedCore0.SwitchRegister = switchRegister;
-		_masterMultiLedCore0.newData = true;
+		_masterMultiLed.LEDon.value = lEDon.value;
+		_masterMultiLed.LEDblink.value = lEDblink.value;
+		_masterMultiLed.LowBattery = lowBattery;
+		_masterMultiLed.AcInputConfiguration = lED_AcInputConfiguration;
+		_masterMultiLed.MinimumInputCurrentLimitA = minimumInputCurrentLimit;
+		_masterMultiLed.MaximumInputCurrentLimitA = maximumInputCurrentLimit;
+		_masterMultiLed.ActualInputCurrentLimitA = actualInputCurrentLimit;
+		_masterMultiLed.SwitchRegister = switchRegister;
+		_masterMultiLedNewData = true;
 		_masterMultiLedLogged = false;
 		xSemaphoreGive(_semaphoreStatus);
 	}
 }
 
+void VEBus::decodeInfoFrame(std::vector<uint8_t>& buffer)
+{
+	switch (buffer[9])
+	{
+	case VEBusDefinition::L4:
+	case VEBusDefinition::L3:
+	case VEBusDefinition::L2:
+	case VEBusDefinition::S_L1: // 83 83 FE 1B 20 01 01 00 04 08 00 00 00 00 C6 59 1E 00 00 7D FF 
+	case VEBusDefinition::S_L2:
+	case VEBusDefinition::S_L3:
+	case VEBusDefinition::S_L4:
+	{
+		AcInfo info{};
+		info.Phase = (PhaseInfo)buffer[9];
+		info.State = (PhaseState)buffer[8];
+		info.MainVoltage = convertRamVarToValueSigned(RamVariables::UBat, (buffer[11] << 8 | buffer[10]));
+		info.MainCurrent = convertRamVarToValueSigned(RamVariables::IInverterRMS, (buffer[13] << 8 | buffer[12])) * buffer[5]; // buffer[5] -> BF factor
+		info.InverterVoltage = convertRamVarToValueSigned(RamVariables::UBat, (buffer[15] << 8 | buffer[14]));
+		info.InverterCurrent = convertRamVarToValueSigned(RamVariables::IInverterRMS, (buffer[17] << 8 | buffer[16])) * buffer[6]; // buffer[6] -> Inverter factor
+		//info.MainFrequency = convertSettingToValue(Settings::RepeatedAbsorptionTime,buffer[18]);
+
+		xSemaphoreTake(_semaphoreStatus, portMAX_DELAY);
+		bool phaseInfoFound = false;
+		for (auto& element : _acInfo) {
+			if (info.Phase != element.Phase) continue;
+			phaseInfoFound = true;
+			if (info == element)
+			{
+				xSemaphoreGive(_semaphoreStatus);
+				return;
+			}
+			element = info;
+			element.newInfo = true;
+			break;
+		}
+
+		if (phaseInfoFound == false)
+		{
+			info.newInfo = true;
+			_acInfo.push_back(info);
+		}
+		xSemaphoreGive(_semaphoreStatus);
+		break;
+	}
+	case VEBusDefinition::DC: // 83 83 FE 72 20 40 A5 C4 01 0C 33 05 12 00 00 00 00 00 86 EB FF
+	{
+		DcInfo info{};
+		info.Voltage = convertRamVarToValueSigned(RamVariables::UBat, (buffer[11] << 8 | buffer[10]));
+		info.CurrentInverting = convertRamVarToValueSigned(RamVariables::IBat, (buffer[12] | (buffer[13] << 8) | (buffer[14] << 16)));
+		info.CurrentCharging = convertRamVarToValueSigned(RamVariables::IBat, (buffer[15] | (buffer[16] << 8) | (buffer[17] << 16)));
+		//info.InverterFrequency = 1 / convertSettingToValue(Settings::RepeatedAbsorptionTime, buffer[18]) * 10;
+
+		if (info == _dcInfo) break;
+		info.newInfo = true;
+		xSemaphoreTake(_semaphoreStatus, portMAX_DELAY);
+		_dcInfo = info;
+		xSemaphoreGive(_semaphoreStatus);
+		break;
+	}
+	default:
+		break;
+	}
+	xSemaphoreTake(_semaphoreStatus, portMAX_DELAY);
+
+	xSemaphoreGive(_semaphoreStatus);
+}
 
 //Runs on core 0
 void VEBus::commandHandling()
@@ -865,6 +981,16 @@ void VEBus::commandHandling()
 		if (_receiveBuffer.back() != END_OF_FRAME) continue;
 
 		bool saveToReceiveBufferList = true;
+
+		for (size_t i = 0; i < _whitelistSize; i++)
+		{
+			saveToReceiveBufferList = false;
+			if (_whitelist[i].at > _receiveBuffer.size()) continue;
+			if (_whitelist[i].value != _receiveBuffer[_whitelist[i].at]) continue;
+
+			saveToReceiveBufferList = true;
+			break;
+		}
 
 		for (size_t i = 0; i < _blacklistSize; i++)
 		{
@@ -1117,32 +1243,6 @@ void VEBus::saveResponseData(Data data)
 	Serial.println();
 }
 
-void VEBus::saveStatusFromCore0()
-{
-	if (_masterMultiLedCore0.newData) {
-		xSemaphoreTake(_semaphoreStatus, portMAX_DELAY);
-		_masterMultiLedCore0.newData = false;
-		_masterMultiLed = _masterMultiLedCore0;
-		xSemaphoreGive(_semaphoreStatus);
-		if (_logLevel >= LogLevel::Debug && !_masterMultiLedLogged)
-		{
-			_masterMultiLedLogged = true;
-			Serial.println("new _masterMultiLed data");
-		}
-	}
-	if (_multiPlusStatusCore0.newData) {
-		xSemaphoreTake(_semaphoreStatus, portMAX_DELAY);
-		_multiPlusStatusCore0.newData = false;
-		_multiPlusStatus = _multiPlusStatusCore0;
-		xSemaphoreGive(_semaphoreStatus);
-		if (_logLevel >= LogLevel::Debug && !_multiPlusStatusLogged)
-		{
-			_multiPlusStatusLogged = true;
-			Serial.println("new _multiPlusStatus data");
-		}
-	}
-}
-
 void VEBus::saveSettingInfoData(Data& data)
 {
 	SettingInfo settingInfo;
@@ -1219,4 +1319,19 @@ void VEBus::logging()
 		}
 	}
 	xSemaphoreGive(_semaphoreDataFifo);
+
+	if (_masterMultiLedNewData && !_masterMultiLedLogged) {
+		xSemaphoreTake(_semaphoreStatus, portMAX_DELAY);
+		_masterMultiLedLogged = true;
+		xSemaphoreGive(_semaphoreStatus);
+		Serial.println("new _masterMultiLed data");
+	}
+
+	if (_masterMultiLedNewData && !_multiPlusStatusLogged) {
+		xSemaphoreTake(_semaphoreStatus, portMAX_DELAY);
+		_multiPlusStatusLogged = true;
+		xSemaphoreGive(_semaphoreStatus);
+		Serial.println("new _multiPlusStatus data");
+	}
 }
+

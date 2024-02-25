@@ -183,7 +183,6 @@ namespace VEBusDefinition
         float   MaximumInputCurrentLimitA;
         float   ActualInputCurrentLimitA;
         uint8_t    SwitchRegister;
-        bool newData = false;
     };
 
     struct MultiPlusStatus
@@ -192,7 +191,74 @@ namespace VEBusDefinition
         float   DcCurrentA;
         int16_t BatterieAh;
         bool    DcLevelAllowsInverting;
-        bool newData = false;
+    };
+
+    enum PhaseInfo
+    {
+        L4 = 0x05,
+        L3 = 0x06,
+        L2 = 0x07,
+        S_L1 = 0x08,
+        S_L2 = 0x09,
+        S_L3 = 0x0A,
+        S_L4 = 0x0B,
+        DC = 0x0C,
+    };
+
+    enum PhaseState
+    {
+        Down = 0x00,
+        Startup = 0x01,
+        Off = 0x02,
+        Slave = 0x03,
+        InvertFull = 0x04,
+        InvertHalf = 0x05,
+        InvertAES = 0x06,
+        PowerAssist = 0x07,
+        Bypass = 0x08,
+        StateCharge = 0x09
+    };
+
+    struct DcInfo
+    {
+        bool newInfo;
+        float Voltage;
+        float CurrentInverting;
+        float CurrentCharging;
+        //float InverterFrequency;
+        //uint8_t InverterPeriod;
+
+        bool operator==(const DcInfo& a) const {
+            return (Voltage == a.Voltage) &&
+                (CurrentInverting == a.CurrentInverting) &&
+                (CurrentCharging == a.CurrentCharging);//&&
+                //(InverterFrequency == a.InverterFrequency) &&
+                //(InverterPeriod == a.InverterPeriod);
+        }
+    };
+
+    struct AcInfo
+    {
+        bool newInfo;
+        PhaseInfo Phase;
+        PhaseState State;
+        float MainVoltage;
+        float MainCurrent;
+        float InverterVoltage;
+        float InverterCurrent;
+        //float MainFrequency;
+        //uint8_t MainPeriod;
+
+        bool operator==(const AcInfo& a)
+        const {
+            return (State == a.State) &&
+                (MainVoltage == a.MainVoltage) &&
+                (MainCurrent == a.MainCurrent) &&
+                (InverterVoltage == a.InverterVoltage) &&
+                (InverterCurrent == a.InverterCurrent);//&&
+                //(MainFrequency == a.MainFrequency) &&
+                //(MainPeriod == a.MainPeriod);
+        }
     };
 
 #ifdef MULTIPLUS_II_12_3000
