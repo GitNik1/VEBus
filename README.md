@@ -44,10 +44,10 @@ If you have a device, it is not in the library. Send me the serial output to int
 
 
 ## Function descriptions
-* [Callback for received messages](https://github.com/GitNik1/VEBusPrivate/blob/updateReadme/README.md#callback-for-received-messages)
-* [Callback for response messages](https://github.com/GitNik1/VEBusPrivate/blob/updateReadme/README.md#callback-for-response-messages)
-* [Write a value to Multiplus](https://github.com/GitNik1/VEBusPrivate/blob/updateReadme/README.md#write-a-value-to-multiplus)
-* [Read a value to Multiplus](https://github.com/GitNik1/VEBusPrivate/blob/updateReadme/README.md#read-a-value-to-multiplus)
+* [Callback for received messages](https://github.com/GitNik1/VEBus?tab=readme-ov-file#callback-for-received-messages)
+* [Callback for response messages](https://github.com/GitNik1/VEBus?tab=readme-ov-file#callback-for-response-messages)
+* [Write a value to Multiplus](https://github.com/GitNik1/VEBus?tab=readme-ov-file#write-a-value-to-multiplus)
+* [Read a value to Multiplus](https://github.com/GitNik1/VEBus?tab=readme-ov-file#read-a-value-to-multiplus)
 ### Callback for received messages
 ```ruby
 void SetReceiveCallback(std::function<void(std::vector<uint8_t>& buffer)> cb);
@@ -70,7 +70,7 @@ void setup()
 }
 ```
 > [!TIP]
-> If you don't want to see some messages, you can skip them using a blacklist
+> If you don't want to see some messages, you can skip them using a blacklist or use the whitelist to see specific messages.
 ```ruby
 VEBus::Blacklist _blacklist[] = { {.value = 0xE4, .at = 4}, {.value = 0x55, .at = 4} };
 
