@@ -26,6 +26,30 @@ namespace VEBusDefinition
         ReadSnapShot = 0x38
     };
 
+    enum CommandDeviceState
+    {
+        Inquire = 0,
+        ForceToEqualise = 1,
+        ForceToAbsorption = 2,
+        ForceToFloat = 3,
+    };
+
+    enum StateDescription
+    {
+        DeviceDown = 0,
+        DeviceStarup = 1,
+        DeviceOff = 2,
+        DeviceSlaveMode = 3,
+        DeviceInvertFull = 4,
+        DeviceInvertHalf = 5,
+        DeviceInvertAES = 6,
+        DevicePowerAssist = 7,
+        DeviceBypass = 8,
+        DeviceChargeInit = 9,
+        DeviceChargeBulk = 10,
+        DeviceChargeAbsorption = 11
+    };
+
     enum RamVariables : uint8_t
     {
         UMainsRMS = 0,

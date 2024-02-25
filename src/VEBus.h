@@ -131,6 +131,7 @@ public:
 
     //Get VE.BUS Version
     uint8_t ReadSoftwareVersion();
+    uint8_t CommandReadDeviceState();
 
     void DestuffingFAtoFF(std::vector<uint8_t>& buffer);
 
@@ -199,6 +200,7 @@ private:
     void prepareCommandWriteData(std::vector<uint8_t>& buffer, uint8_t id, uint16_t value);
     void prepareCommandReadInfo(std::vector<uint8_t>& buffer, uint8_t id, uint8_t winmonCommand, uint16_t setting);
     void prepareCommandReadSoftwareVersion(std::vector<uint8_t>& buffer, uint8_t id, uint8_t winmonCommand);
+    void prepareCommandSetGetDeviceState(std::vector<uint8_t>& buffer, uint8_t id, CommandDeviceState command, uint8_t state = 0);
 
     void prepareCommandSetSwitchState(std::vector<uint8_t>& buffer, SwitchState switchState);
 

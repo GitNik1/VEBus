@@ -445,8 +445,22 @@ uint8_t VEBus::ReadSoftwareVersion()
 	if (!getNextFreeId_1(data.id)) return 0;
 	data.responseExpected = true;
 	data.command = WinmonCommand::SendSoftwareVersionPart0;
+	data.address = 0;
 	data.expectedResponseCode = 0x82;
 	prepareCommandReadSoftwareVersion(data.requestData, data.id, data.command);
+	addOrUpdateFifo(data);
+	return data.id;
+}
+
+uint8_t VEBus::CommandReadDeviceState()
+{
+	Data data;
+	if (!getNextFreeId_1(data.id)) return 0;
+	data.responseExpected = true;
+	data.command = WinmonCommand::GetSetDeviceState;
+	data.address = 0;
+	data.expectedResponseCode = 0x94;
+	prepareCommandSetGetDeviceState(data.requestData, data.id, CommandDeviceState::Inquire);
 	addOrUpdateFifo(data);
 	return data.id;
 }
@@ -606,6 +620,16 @@ void VEBus::prepareCommandReadSoftwareVersion(std::vector<uint8_t>& buffer, uint
 	buffer.push_back(0x00);
 	buffer.push_back(id);
 	buffer.push_back(winmonCommand);
+}
+
+void VEBus::prepareCommandSetGetDeviceState(std::vector<uint8_t>& buffer, uint8_t id, CommandDeviceState command, uint8_t state)
+{
+	buffer.clear();
+	buffer.push_back(0x00);
+	buffer.push_back(id);
+	buffer.push_back(WinmonCommand::GetSetDeviceState);
+	buffer.push_back(command);
+	buffer.push_back(state);
 }
 
 //prepareCommand without ID
@@ -1143,6 +1167,14 @@ void VEBus::saveResponseData(Data data)
 	case VEBusDefinition::SendSoftwareVersionPart1:
 		break;
 	case VEBusDefinition::GetSetDeviceState:
+		if (data.responseData.size() != 11) {
+			if (_logLevel >= LogLevel::Warning) Serial.printf("GetSetDeviceState wrong size %d\n", data.responseData.size());
+			break;
+		}
+		callResponseCb = true;
+		responseData.dataType = ResponseDataType::unsignedInteger;
+		if (data.responseData[7] == 9) responseData.valueUint32 = data.responseData[7] + data.responseData[8];
+		else responseData.valueUint32 = data.responseData[7];
 		break;
 	case VEBusDefinition::ReadRAMVar:
 	{
@@ -1269,7 +1301,6 @@ void VEBus::saveRamVarInfoData(Data& data)
 	Serial.printf("RamVarInfo %d, sc: %d, offset: %d\n", data.address, ramVarInfo.Scale, ramVarInfo.Offset);
 }
 
-//TODO: resend
 void VEBus::garbageCollector()
 {
 
