@@ -146,7 +146,7 @@ uint8_t VEBus::WriteViaID(RamVariables variable, int16_t rawValue, bool eeprom)
 	Data data;
 	if (!getNextFreeId_1(data.id)) return 0;
 	data.responseExpected = true;
-	data.command = WinmonCommand::WriteViaID;
+	data.command = WinmonCommand::WriteRAMVar;
 	data.address = variable;
 	data.expectedResponseCode = 0x87;
 	StorageType storageType = (eeprom == false) ? StorageType::NoEeprom : StorageType::Eeprom;
@@ -160,7 +160,7 @@ uint8_t VEBus::WriteViaID(RamVariables variable, uint16_t rawValue, bool eeprom)
 	Data data;
 	if (!getNextFreeId_1(data.id)) return 0;
 	data.responseExpected = true;
-	data.command = WinmonCommand::WriteViaID;
+	data.command = WinmonCommand::WriteRAMVar;
 	data.address = variable;
 	data.expectedResponseCode = 0x87;
 	StorageType storageType = (eeprom == false) ? StorageType::NoEeprom : StorageType::Eeprom;
@@ -197,7 +197,7 @@ uint8_t VEBus::WriteViaID(Settings setting, int16_t rawValue, bool eeprom)
 	Data data;
 	if (!getNextFreeId_1(data.id)) return 0;
 	data.responseExpected = true;
-	data.command = WinmonCommand::WriteViaID;
+	data.command = WinmonCommand::WriteSetting;
 	data.address = setting;
 	data.expectedResponseCode = 0x88;
 	StorageType storageType = (eeprom == false) ? StorageType::NoEeprom : StorageType::Eeprom;
@@ -212,7 +212,7 @@ uint8_t VEBus::WriteViaID(Settings setting, uint16_t rawValue, bool eeprom)
 	Data data;
 	if (!getNextFreeId_1(data.id)) return 0;
 	data.responseExpected = true;
-	data.command = WinmonCommand::WriteViaID;
+	data.command = WinmonCommand::WriteSetting;
 	data.address = setting;
 	data.expectedResponseCode = 0x88;
 	StorageType storageType = (eeprom == false) ? StorageType::NoEeprom : StorageType::Eeprom;
@@ -530,7 +530,7 @@ void VEBus::prepareCommandWriteViaID(std::vector<uint8_t>& buffer, uint8_t id, u
 	buffer.clear();
 	buffer.push_back(0x00);
 	buffer.push_back(id);
-	buffer.push_back(winmonCommand);
+	buffer.push_back(WinmonCommand::WriteViaID);
 	buffer.push_back(((winmonCommand == WinmonCommand::WriteRAMVar) ? VariableType::RamVar : VariableType::Setting) | storageType); // 0x02 -> no eeprom write
 	buffer.push_back(address);
 	buffer.push_back(value & 0xFF);
@@ -542,7 +542,7 @@ void VEBus::prepareCommandWriteViaID(std::vector<uint8_t>& buffer, uint8_t id, u
 	buffer.clear();
 	buffer.push_back(0x00);
 	buffer.push_back(id);
-	buffer.push_back(winmonCommand);
+	buffer.push_back(WinmonCommand::WriteViaID);
 	buffer.push_back(((winmonCommand == WinmonCommand::WriteRAMVar) ? VariableType::RamVar : VariableType::Setting) | storageType); // 0x02 -> no eeprom write
 	buffer.push_back(address);
 	buffer.push_back(value & 0xFF);
