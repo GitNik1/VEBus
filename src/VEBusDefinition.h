@@ -72,6 +72,11 @@ namespace VEBusDefinition
         ChargeState = 13,
         //(filtered)
         InverterPower = 14,
+        InverterPower2 = 15,
+        OutputPower = 16,
+        InverterPowerNF = 17,
+        InverterPower2NF = 18,
+        OutputPowerNF = 19,
         SizeOfRamVarStruct
     };
 
@@ -323,7 +328,12 @@ namespace VEBusDefinition
                                 {      5, -32768,  true, ResponseDataType::floatingPoint}, \
                                 {      6, -32768,  true, ResponseDataType::floatingPoint}, \
                                 {  32568,      0,  true, ResponseDataType::floatingPoint}, \
-                                {     -1,      0,  true, ResponseDataType::floatingPoint}
+                                {     -1,      0,  true, ResponseDataType::floatingPoint}, \
+                                {     -1,      0,  true, ResponseDataType::floatingPoint}, \
+                                {     -1,      0,  true, ResponseDataType::floatingPoint}, \
+                                {     -1,      0,  true, ResponseDataType::floatingPoint}, \
+                                {     -1,      0,  true, ResponseDataType::floatingPoint}, \
+                                {     -1,      0,  true, ResponseDataType::floatingPoint },
 #endif // MULTIPLUS_II_12_3000
 }
 
